@@ -18,13 +18,13 @@
   [mk-var val sub-map]
   (assoc sub-map mk-var val))
 
-(defn mzero
-  []
-  [])
-
 (defn unit
   [s]
-  (vector s))
+  [s])
+
+
+(defn make-stream
+  [state])
 
 (defn unify
   [u v s]
@@ -44,8 +44,8 @@
   (fn [s]
     (let [s' (unify u v (:sub-map s))]
       (if s'
-        (unit s')
-        mzero))))
+        (unit (assoc s :sub-map s'))
+        []))))
 
 (defn call-fresh
   [f]
@@ -78,4 +78,8 @@
   (fn [s]
     (bind (g1 s) g2)))
 
-((conj (== (mk-var :a) 1) (== (mk-var :b) 2)) {:counter 0 :sub-map {}})
+(def empty-state {:counter 0 :sub-map {}})
+
+((conj
+  (call-fresh (fn [a] (== a 7)))
+  (call-fresh (fn [b] (disj (== b 6) (== b 5))))) empty-state)
