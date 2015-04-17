@@ -1,4 +1,5 @@
 (ns maikurokanren.core
+  (:use [clojure.repl :only (source)])
   (:refer-clojure :exclude [== disj conj]))
 
 (defn mk-var [c] {:id c})
@@ -41,45 +42,59 @@
 
 (defn ==
   [u v]
-  (fn [s]
-    (let [s' (unify u v (:sub-map s))]
-      (if s'
-        (unit (assoc s :sub-map s'))
+  (fn [substitution]
+    (let [updated-sub-map (unify u v (:sub-map substitution))]
+      (if updated-sub-map
+        (unit (assoc substitution :sub-map updated-sub-map))
         []))))
 
 (defn call-fresh
   [f]
-  (fn [s]
-    (let [c (:counter s)
-          fg (f (mk-var  c))]
-      (fg (assoc s :counter (+ 1 c))))))
+  (fn [substituion]
+    (let [counter (:counter substituion)
+          fg (f (mk-var  counter))]
+      (fg (assoc substituion :counter (+ 1 counter))))))
 
 (defn mplus
-  [s1 s2]
+  [stream1 stream2]
   (cond
-   (empty? s1) s2
+   (empty? stream1) stream2
+   (fn? stream1) (fn [] (mplus stream2 (stream1)))
    :else
-   (vec (cons (first s1) (mplus (rest s1) s2)))))
+   (vec (cons (first stream1) (mplus (rest stream1) stream2)))))
 
 (defn bind
-  [s g]
+  [stream goal]
   (cond
-   (empty? s) (mzero)
+   (empty? stream) (vector)
+   (fn? stream) (fn [] (bind (stream) goal))
    :else
-   (mplus (g (first s)) (bind (rest s) g))))
+   (mplus (goal (first stream)) (bind (rest stream) goal))))
 
 (defn disj
-  [g1 g2]
-  (fn [s]
-    (mplus (g1 s) (g2 s))))
+  [goal1 goal2]
+  (fn [stream]
+    (mplus (goal1 stream) (goal2 stream))))
 
 (defn conj
-  [g1 g2]
-  (fn [s]
-    (bind (g1 s) g2)))
+  [goal1 goal2]
+  (fn [stream]
+    (bind (goal1 stream) goal2)))
 
 (def empty-state {:counter 0 :sub-map {}})
 
-((conj
+
+((disj
   (call-fresh (fn [a] (== a 7)))
   (call-fresh (fn [b] (disj (== b 6) (== b 5))))) empty-state)
+
+((call-fresh (fn [b] (disj (== b 6) (== b 5)))) empty-state)
+
+[{:counter 2, :sub-map {{:id 1} 6, {:id 0} 7}}
+ {:counter 2, :sub-map {{:id 1} 5, {:id 0} 7}}]
+
+(defn fives
+  [x]
+  (disj (== x 5) (fn [sc] (fn [] ((fives x) sc)))))
+
+((call-fresh fives) empty-state)
